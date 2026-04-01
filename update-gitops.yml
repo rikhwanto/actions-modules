@@ -1,0 +1,43 @@
+name: Update GitOps Repo
+
+on:
+  workflow_call:
+    inputs:
+      gitops_repo:
+        required: true
+        type: string
+      deployment_file:
+        required: true
+        type: string
+      image_tag:
+        required: true
+        type: string
+      commit_message:
+        required: true
+        type: string
+    secrets:
+      gitops_pat:
+        required: true
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Install yq
+        run: |
+          wget https://github.com/mikefarah/yq/releases/latest/download/v4.52.5/yq_linux_amd64 -O /usr/local/bin/yq
+          chmod +x /usr/local/bin/yq
+
+      - name: Update manifest
+        run: |
+          git clone https://${{ secrets.gitops_pat }}@${{ inputs.gitops_repo }} argocd
+          cd argocd
+          
+          # Use yq to update the specific image field
+          yq -i '.spec.template.spec.containers[0].image = "${{ inputs.image_tag }}"' ${{ inputs.deployment_file }}
+          
+          git config user.name "Gitea Actions"
+          git config user.email "actions@gitea.com"
+          git add .
+          git commit -m "${{ inputs.commit_message }}"
+          git push origin main
