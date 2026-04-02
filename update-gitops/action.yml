@@ -1,0 +1,45 @@
+name: 'Update GitOps Manifest'
+description: 'Updates K8s deployment manifests and pushes to ArgoCD repo'
+inputs:
+  gitops_repo:
+    description: 'GitOps repository URL (without https://)'
+    required: true
+  deployment_file:
+    description: 'Path to the deployment file inside the repo'
+    required: true
+  image_tag:
+    description: 'New Docker image tag to apply'
+    required: true
+  commit_message:
+    description: 'Commit message for the update'
+    required: true
+  gitops_pat:
+    description: 'Personal Access Token for GitOps repo'
+    required: true
+
+runs:
+  using: "composite"
+  steps:
+    - name: Run Update Logic
+      shell: bash
+      run: |
+        echo "::group::Initialize and Clone"
+        wget -q https://github.com/mikefarah/yq/releases/download/v4.52.5/yq_linux_amd64 -O /usr/local/bin/yq
+        chmod +x /usr/local/bin/yq
+        git clone https://${{ inputs.gitops_pat }}@${{ inputs.gitops_repo }} argocd
+        cd argocd
+        echo "::endgroup::"
+
+        echo "::group::Apply YQ Update"
+        # Extract the repository/image name and append the new tag
+        export FULL_IMAGE_TAG="${{ inputs.image_tag }}"
+        yq -i '.spec.template.spec.containers[0].image = stenv(FULL_IMAGE_TAG)' ${{ inputs.deployment_file }}
+        echo "::endgroup::"
+
+        echo "::group::Commit and Push Changes"
+        git config user.name "Gitea Actions"
+        git config user.email "actions@gitea.com"
+        git add ${{ inputs.deployment_file }}
+        git commit -m "${{ inputs.commit_message }}"
+        git push origin main
+        echo "::endgroup::"
