@@ -24,16 +24,15 @@ runs:
       shell: bash
       run: |
         echo "::group::Initialize and Clone"
-        wget -q https://github.com/mikefarah/yq/releases/download/v4.52.5/yq_linux_amd64 -O /usr/local/bin/yq
-        chmod +x /usr/local/bin/yq
+        wget -q https://github.com/mikefarah/yq/releases/download/v4.52.5/yq_linux_amd64 -O ./yq
+        chmod +x ./yq
         git clone https://${{ inputs.gitops_pat }}@${{ inputs.gitops_repo }} argocd
         cd argocd
         echo "::endgroup::"
 
         echo "::group::Apply YQ Update"
         # Extract the repository/image name and append the new tag
-        export FULL_IMAGE_TAG="${{ inputs.image_tag }}"
-        yq -i '.spec.template.spec.containers[0].image = stenv(FULL_IMAGE_TAG)' ${{ inputs.deployment_file }}
+        ../yq -i ".spec.template.spec.containers[0].image = \"${{ inputs.image_tag }}\"" ${{ inputs.deployment_file }}
         echo "::endgroup::"
 
         echo "::group::Commit and Push Changes"
