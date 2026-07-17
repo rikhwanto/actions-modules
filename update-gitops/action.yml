@@ -22,23 +22,33 @@ runs:
   steps:
     - name: Run Update Logic
       shell: bash
+      env:
+        # Pass inputs through the environment so their contents are never
+        # interpolated into the script text. Commit messages (and other inputs)
+        # may contain quotes/newlines/shell metacharacters; referencing them as
+        # quoted bash variables avoids broken quoting and shell injection.
+        GITOPS_PAT: ${{ inputs.gitops_pat }}
+        GITOPS_REPO: ${{ inputs.gitops_repo }}
+        DEPLOYMENT_FILE: ${{ inputs.deployment_file }}
+        IMAGE_TAG: ${{ inputs.image_tag }}
+        COMMIT_MESSAGE: ${{ inputs.commit_message }}
       run: |
         echo "::group::Initialize and Clone"
         wget -q https://github.com/mikefarah/yq/releases/download/v4.52.5/yq_linux_amd64 -O ./yq
         chmod +x ./yq
-        git clone https://${{ inputs.gitops_pat }}@${{ inputs.gitops_repo }} argocd
+        git clone "https://${GITOPS_PAT}@${GITOPS_REPO}" argocd
         cd argocd
         echo "::endgroup::"
 
         echo "::group::Apply YQ Update"
         # Extract the repository/image name and append the new tag
-        ../yq -i ".spec.template.spec.containers[0].image = \"${{ inputs.image_tag }}\"" ${{ inputs.deployment_file }}
+        IMAGE_TAG="$IMAGE_TAG" ../yq -i ".spec.template.spec.containers[0].image = strenv(IMAGE_TAG)" "$DEPLOYMENT_FILE"
         echo "::endgroup::"
 
         echo "::group::Commit and Push Changes"
         git config user.name "Gitea Actions"
         git config user.email "actions@gitea.com"
-        git add ${{ inputs.deployment_file }}
-        git commit -m "${{ inputs.commit_message }}"
+        git add "$DEPLOYMENT_FILE"
+        git commit -m "$COMMIT_MESSAGE"
         git push origin main
         echo "::endgroup::"
